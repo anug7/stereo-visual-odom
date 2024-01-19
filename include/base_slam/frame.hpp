@@ -22,13 +22,14 @@ namespace base_slam {
             SE3 cam_pose_;
             std::mutex acc_lock_; //pose will be updated from backend as well as frontend
             cv::Mat limg_, rimg_;
+            bool is_depth_img_;
             //Ref to list of features in the frame
             //Left is the base
             std::vector<std::shared_ptr<Feature>> left_features_, right_features_;
 
             Frame(){}
 
-            Frame(long id, double ts, const SE3 &pose, const cv::Mat &left, const cv::Mat &right);
+            Frame(long id, double ts, const SE3 &pose, const cv::Mat &left, const cv::Mat &right_or_depth, bool depth_img=false);
 
             SE3 getPose()
             {

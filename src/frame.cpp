@@ -3,8 +3,11 @@
 
 namespace base_slam {
 
-    Frame::Frame(long id, double ts, const SE3 &pose, const cv::Mat &left, const cv::Mat &right)
-          :id_(id), timestamp(ts), cam_pose_(pose), limg_(left), rimg_(right){}
+    Frame::Frame(long id, double ts, const SE3 &pose, const cv::Mat &left, const cv::Mat &right_or_depth, bool depth_img)
+          :id_(id), timestamp(ts), cam_pose_(pose), limg_(left), rimg_(right_or_depth)
+    {
+        this->is_depth_img_ = depth_img;
+    }
 
     void Frame::setKeyFrame()
     {

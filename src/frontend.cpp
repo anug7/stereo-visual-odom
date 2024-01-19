@@ -13,7 +13,10 @@ namespace base_slam {
     FrontEnd::FrontEnd()
     {
         int nfeats = Config::getConfigValue<int>("num_features");
-        gftt_ = cv::GFTTDetector::create(nfeats, 0.01, 20);
+        //gftt_ = cv::GFTTDetector::create(1000, 0.01, 20);
+        gftt_ = cv::GFTTDetector::create();
+        orb_ = cv::ORB::create(nfeats);
+        sift_ = cv::SIFT::create(nfeats);
         nfeats_init_ = Config::getConfigValue<int>("num_features_init");
         nfeats_ = nfeats;
     }
@@ -24,9 +27,11 @@ namespace base_slam {
 
         switch(status_)
         {
-            case FrontEndStatus::INIT:
-                stereoInit();
+            case FrontEndStatus::INIT: {
+                if(current_frame_->is_depth_img_) stereoInitRGBD();
+                else stereoInit();
                 break;
+            }
             case FrontEndStatus::TRACKING_GOOD:
             case FrontEndStatus::TRACKING_BAD:
                 track();
@@ -197,6 +202,7 @@ namespace base_slam {
         if(tracking_inliers_ >= nfeats_for_keyframe_)
         {
             //tracked feats are good enough.
+            std::cout << "Inliers decreased" << std::endl;
             return false;
         }
 
@@ -207,8 +213,13 @@ namespace base_slam {
 
         setObservationsForKeyPoints();
         detectFeatures();
-        findFeaturesInRight();
-        triangulateNewPoints();
+        if(!current_frame_->is_depth_img_){
+            findFeaturesInRight();
+            triangulateNewPoints();
+        }else {
+            auto pts = findZfromDepthImage();
+            std::cout << "D points: " << pts << std::endl;
+        }
         backend_->updateMap();
         if(viewer_) viewer_->updateMap();
 
@@ -227,6 +238,9 @@ namespace base_slam {
     int FrontEnd::detectFeatures()
     {
         cv::Mat mask(current_frame_->limg_.size(), CV_8UC1, 255);
+        cv::rectangle(mask, cv::Point2f(0, 0), cv::Point2f(60, 480), 0, cv::FILLED);
+        cv::rectangle(mask, cv::Point2f(0, 0), cv::Point2f(640, 90), 0, cv::FILLED);
+        cv::rectangle(mask, cv::Point2f(380, 350), cv::Point2f(430, 480), 0, cv::FILLED);
         // Don't detect feature in already existing regions
         for(auto &feat: current_frame_->left_features_)
         {
@@ -235,6 +249,8 @@ namespace base_slam {
         }
         std::vector<cv::KeyPoint> kps;
         gftt_->detect(current_frame_->limg_, kps, mask);
+        //orb_->detect(current_frame_->limg_, kps, mask);
+        //sift_->detect(current_frame_->limg_, kps, mask);
         int nfeats = 0;
         for(auto &kp: kps)
         {
@@ -287,6 +303,36 @@ namespace base_slam {
         }
         std::cout << "Found KPs in right image: " << ngood_pts <<  std::endl;
         return ngood_pts;
+    }
+
+    int FrontEnd::findZfromDepthImage()
+    {
+        SE3 pose_twc = current_frame_->getPose().inverse();
+        int npts = 0;
+        for(size_t i = 0; i < current_frame_->left_features_.size(); ++i)
+        {
+            if(current_frame_->left_features_[i]->mappoint_ptr_.expired())
+            {
+                auto &kp = current_frame_->left_features_[i]->pos_.pt;
+                Vec3 points = left_cam_->pixel2Cam(Vec2(kp.x, kp.y));
+                if(current_frame_->rimg_.cols > 0)
+                {
+                    //Find depth from depth image
+                    points[2] = ((float)current_frame_->rimg_.at<uint16_t>(kp.y, kp.x)) * 0.001;
+                    if(points[2] > 0)
+                    {
+                        auto nmap_point = MapPoint::createMapPoint();
+                        auto pworld = pose_twc * points;
+                        nmap_point->setPos(pworld);
+                        nmap_point->addObservations(current_frame_->left_features_[i]);
+                        current_frame_->left_features_[i]->mappoint_ptr_ = nmap_point;
+                        map_->insertMapPoint(nmap_point);
+                        ++npts;
+                    }
+                }
+            }
+        }
+        return npts;
     }
 
     int FrontEnd::triangulateNewPoints()
@@ -370,6 +416,48 @@ namespace base_slam {
         return true;
     }
 
+    bool FrontEnd::buildInitMapRGBD()
+    {
+        SE3 pose_twc = current_frame_->getPose().inverse();
+        int npts = 0;
+        for(size_t i = 0; i < current_frame_->left_features_.size(); ++i)
+        {
+            if(current_frame_->left_features_[i]->mappoint_ptr_.expired())
+            {
+                auto &kp = current_frame_->left_features_[i]->pos_.pt;
+                Vec3 points = left_cam_->pixel2Cam(Vec2(kp.x, kp.y));
+                if(current_frame_->rimg_.cols > 0)
+                {
+                    //Find depth from depth image
+                    cv::Rect rect(kp.x - 3, kp.y - 3, 6, 6);
+                    auto op = current_frame_->rimg_(rect);
+                    double minval = 0, maxval = 0;
+                    cv::Point l1, l2;
+                    cv::minMaxLoc(op, &minval, &maxval, &l1, &l2);
+                    if(maxval > 0)
+                    {
+                        points[2] = maxval * 0.001;
+                        auto nmap_point = MapPoint::createMapPoint();
+                        auto pworld = pose_twc * points;
+                        nmap_point->setPos(pworld);
+                        nmap_point->addObservations(current_frame_->left_features_[i]);
+                        current_frame_->left_features_[i]->mappoint_ptr_ = nmap_point;
+                        map_->insertMapPoint(nmap_point);
+                        ++npts;
+                    }
+                }
+            }
+        }
+        current_frame_->setKeyFrame();
+        map_->insertKeyFrame(current_frame_);
+        backend_->updateMap();
+
+        auto op = left_cam_->pixel2World(toVec2(cv::Point2f(current_frame_->limg_.cols / 2, current_frame_->limg_.rows/2)), current_frame_->getPose());
+        std::cout << "Optical center: " << op.matrix() << std::endl;
+        std::cout << "Initmap created with: " << npts << " landmarks" << std::endl;
+        return npts > 0;
+    }
+
     bool FrontEnd::reset()
     {
         //std::cout << "to be implemented" << std::endl;
@@ -394,7 +482,7 @@ namespace base_slam {
 
     bool FrontEnd::stereoInit()
     {
-        int nfeat_left = detectFeatures();
+        detectFeatures();
         int nfeat_right = findFeaturesInRight();
         if(nfeat_right < nfeats_init_)
         {
@@ -413,6 +501,29 @@ namespace base_slam {
             return true;
         }
         return false;
+    }
+
+    bool FrontEnd::stereoInitRGBD()
+    {
+          detectFeatures();
+          int npts = findZfromDepthImage();
+          if(npts < nfeats_init_)
+          {
+              return false;
+          }
+          bool map_success = buildInitMapRGBD();
+          if(map_success)
+          {
+              status_ = FrontEndStatus::TRACKING_GOOD;
+              if(viewer_)
+              {
+                  viewer_->addCurrentFrame(current_frame_);
+                  viewer_->updateMap();
+              }
+              std::cout << "Stereo init successfully RGBD" << std::endl;
+              return true;
+          }
+          return false;
     }
 
     void FrontEnd::setBackend(Backend::Ptr backend)

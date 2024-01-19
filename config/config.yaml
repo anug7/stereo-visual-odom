@@ -2,7 +2,8 @@
 # data
 # the tum dataset directory, change it to yours!
 # dataset_dir: /media/xiang/Data/Dataset/Kitti/dataset/sequences/00
-dataset_dir: /home/guna/Downloads/Kitti/15
+# dataset_dir: /home/guna/Downloads/Kitti/15
+dataset_dir: /home/guna/tmp/field/data/depth-cam/extracted-imgs
 
 # camera intrinsics
 camera.fx: 517.3

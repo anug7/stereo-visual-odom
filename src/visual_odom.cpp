@@ -1,6 +1,8 @@
 
-#include "base_slam/visual_odom.hpp"
 #include <chrono>
+#include "base_slam/visual_odom.hpp"
+#include "base_slam/rs_dataset.hpp"
+
 
 namespace base_slam
 {
@@ -16,7 +18,8 @@ namespace base_slam
             return false;
         }
 
-        dataset_ = Dataset::Ptr(new Dataset(Config::getConfigValue<std::string>("dataset_dir")));
+        //dataset_ = Dataset::Ptr(new Dataset(Config::getConfigValue<std::string>("dataset_dir")));
+        dataset_ = new RsDataset(Config::getConfigValue<std::string>("dataset_dir"));
         assert(dataset_->init() == true);
 
         frontend_ = FrontEnd::Ptr(new FrontEnd);
@@ -27,13 +30,21 @@ namespace base_slam
         frontend_->setBackend(backend_);
         frontend_->setMap(map_);
         frontend_->setViewer(viewer_);
-        frontend_->setCamera(dataset_->getCamera(0), dataset_->getCamera(1));
+        frontend_->setCamera(dataset_->getCamera(0), dataset_->getCamera(0));
 
         backend_->setMap(map_);
-        backend_->setCameras(dataset_->getCamera(0), dataset_->getCamera(1));
+        backend_->setCameras(dataset_->getCamera(0), dataset_->getCamera(0));
 
         viewer_->setMap(map_);
         return true;
+    }
+
+    VisualOdom::~VisualOdom()
+    {
+        if(dataset_ != nullptr)
+        {
+            delete dataset_;
+        }
     }
 
 

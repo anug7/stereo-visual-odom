@@ -15,15 +15,16 @@ namespace base_slam {
         public:
             EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
             typedef std::shared_ptr<Dataset> Ptr;
-            Dataset(const std::string &dset_path);
+            Dataset(const std::string &dset_path){dset_path_ = dset_path;};
 
-            bool init();
+            virtual bool init() = 0;
 
-            Frame::Ptr nextFrame();
+            virtual Frame::Ptr nextFrame() = 0;
 
-            Camera::Ptr getCamera(int cam_id) const;
+            virtual Camera::Ptr getCamera(int cam_id) const = 0;
 
-        private:
+            virtual ~Dataset(){}
+        protected:
             std::string dset_path_;
             int current_image_idx_;
 
@@ -31,6 +32,4 @@ namespace base_slam {
     };
 
 }
-
-
 #endif

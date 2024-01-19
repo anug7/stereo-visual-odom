@@ -1,16 +1,10 @@
 
-#include "base_slam/dataset.hpp"
+#include "base_slam/kitti_dataset.hpp"
 
 
 namespace base_slam {
 
-    Dataset::Dataset(const std::string &dset_path)
-    {
-        dset_path_ = dset_path;
-        current_image_idx_ = 0;
-    }
-
-    bool Dataset::init()
+    bool KittiDataset::init()
     {
         std::ifstream fin(dset_path_ + "/calib.txt");
         if(!fin)
@@ -43,7 +37,7 @@ namespace base_slam {
         return true;
     }
 
-    Frame::Ptr Dataset::nextFrame()
+    Frame::Ptr KittiDataset::nextFrame()
     {
         boost::format fmt("%s/image_%d/%06d.png");
         cv::Mat limg, rimg;
@@ -67,7 +61,7 @@ namespace base_slam {
         return nframe;
     }
 
-    Camera::Ptr Dataset::getCamera(int cam_id) const
+    Camera::Ptr KittiDataset::getCamera(int cam_id) const
     {
         return cameras_.at(cam_id);
     }

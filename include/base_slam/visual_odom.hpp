@@ -21,7 +21,7 @@ namespace base_slam
             typedef std::shared_ptr<VisualOdom> Ptr;
 
             VisualOdom(std::string &config_path);
-
+            ~VisualOdom();
             bool init();
 
             void run();
@@ -39,7 +39,7 @@ namespace base_slam
             Map::Ptr map_ = nullptr;
             Viewer::Ptr viewer_ = nullptr;
 
-            Dataset::Ptr dataset_ = nullptr;
+            Dataset *dataset_ = nullptr;
     };
 }
 

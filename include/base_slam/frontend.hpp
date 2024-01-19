@@ -61,14 +61,22 @@ namespace base_slam {
             //Try initializing of frontend with stereo images saved in current_frame_
             bool stereoInit();
 
+            //Initializing with RGB-D Image
+            bool stereoInitRGBD();
+
             //Detect features in right image of current frame
             int detectFeatures();
 
             //Find corresponsing features in right image
             int findFeaturesInRight();
 
+            //Find depth from corresponding depth image
+            int findZfromDepthImage();
+
             //Initialize map with single image
             bool buildInitMap();
+
+            bool buildInitMapRGBD();
 
             //Triangulate 2D points in current frame
             int triangulateNewPoints();
@@ -97,6 +105,8 @@ namespace base_slam {
             int nfeats_for_keyframe_ = 80;
 
             cv::Ptr<cv::GFTTDetector> gftt_;
+            cv::Ptr<cv::ORB> orb_;
+            cv::Ptr<cv::SIFT> sift_;
     };
 
 }
